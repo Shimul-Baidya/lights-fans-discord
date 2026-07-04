@@ -2,7 +2,7 @@
 
 A monitoring system for a small office that lets anyone track lights, fans, and electricity usage through a live web dashboard and a Discord bot. Built for the Techathon Nationals preliminary round (IUT Robotics Society).
 
-> Status: Architecture and diagrams complete. Phase 0 de-risking prototypes (WebSocket broadcast, hello-world Discord bot) are working. Full backend, dashboard, and bot implementation in progress.
+> Status: Architecture and diagrams complete. Backend core (device registry, simulated clock, occupancy simulator, energy accumulator, alert engine, REST API, WebSocket broadcast) is implemented and verified. Dashboard and Discord bot implementation in progress.
 
 ## The Problem
 
@@ -70,8 +70,17 @@ Response phrasing is produced by a configurable LLM provider, selected via envir
 lights-fans-discord/
 ├── README.md
 ├── backend/
-│   ├── main.py              # FastAPI app + WebSocket broadcast proof-of-concept
-│   ├── static/index.html    # bare page proving live update with no refresh
+│   ├── main.py              # FastAPI app: lifespan-managed simulator task, REST router, /ws/dashboard
+│   ├── config.py            # device registry, wattages, office hours, alert thresholds, sim clock speed
+│   ├── models.py            # Pydantic response contract (Device, RoomStatus, Usage, Alert, DashboardSnapshot)
+│   ├── clock.py             # SimClock — adjustable-speed simulated time
+│   ├── state.py             # OfficeState — the single shared source of truth
+│   ├── energy.py            # EnergyAccumulator — integrates power draw into today's kWh
+│   ├── alerts.py            # alert engine — after-hours and continuous-on (>2h) conditions
+│   ├── simulator.py         # occupancy model + the tick loop (advance, update, accumulate, evaluate, broadcast)
+│   ├── ws.py                # ConnectionManager — WebSocket registry and broadcast
+│   ├── api.py               # REST endpoints: /api/status, /api/room/{name}, /api/usage, /api/alerts
+│   ├── static/index.html    # raw snapshot viewer for /ws/dashboard — a smoke test, not the dashboard
 │   └── requirements.txt
 ├── bot/
 │   ├── bot.py                # hello-world Discord bot (!ping), correct intents
@@ -83,11 +92,9 @@ lights-fans-discord/
         └── lights_fans_discord.drawio.svg  # exported diagram, embedded above
 ```
 
-`backend/` and `bot/` currently hold Phase 0 proofs-of-concept, not the final implementation — they confirm the WebSocket broadcast mechanism and the Discord bot's connection/intents work before Phase 1–3 build the real device state, dashboard, and commands on top. The dashboard will move from `backend/static/` into its own directory once it's more than a single test page.
+`bot/` currently holds a Phase 0 proof-of-concept — it confirms the Discord bot's connection and intents work before Phase 3 builds the real commands on top. The dashboard lives in its own not-yet-created directory (`frontend/`) built against the same `/ws/dashboard` contract `backend/static/index.html` exercises.
 
-## Running the Phase 0 Prototypes
-
-**WebSocket broadcast (backend/):**
+## Running the Backend
 
 ```bash
 cd backend
@@ -96,9 +103,20 @@ pip install -r requirements.txt
 uvicorn main:app --reload
 ```
 
-Open `http://127.0.0.1:8000` in a browser. The counter, server time, and connected-client count update once per second with no page refresh — this is the same push mechanism the real dashboard will use for device state.
+Open `http://127.0.0.1:8000` in a browser to see the raw JSON pushed over `/ws/dashboard` on every simulator tick (sim time, per-room device states, total watts, active alerts) — a verification view, not the final dashboard. Or query the REST API directly:
 
-**Discord bot (bot/):**
+```bash
+curl http://127.0.0.1:8000/api/status
+curl http://127.0.0.1:8000/api/room/Work%20Room%201
+curl http://127.0.0.1:8000/api/usage
+curl http://127.0.0.1:8000/api/alerts
+```
+
+The simulated clock's speed and start time are set via environment variables (`SIM_SPEED`, `SIM_START_HOUR`, `SIM_START_MINUTE` in `config.py`) rather than a runtime control endpoint — office-hours and continuous-on alert conditions that take real hours to occur naturally can be sped through in a minute or two, which is what makes them demonstrable in a short demo video.
+
+## Running the Bot Prototype
+
+`bot/` is still the Phase 0 hello-world bot (`!ping` only) — the real `!status`/`!room`/`!usage` commands against the backend's REST API are Phase 3, not yet built.
 
 ```bash
 cd bot
