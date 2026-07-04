@@ -510,9 +510,9 @@
       </div>
       <div class="p-4 space-y-3">
         <p class="text-[11.5px] leading-relaxed" style="color:var(--txt-2)">
-          Force scenarios against the data source. Live mode posts to
-          <span class="mono text-[10px] px-1 py-0.5 rounded" style="background:#0b0f18;border:1px solid var(--border)">/api/debug/trigger-alert</span>;
-          simulation mode drives the local simulator.
+          Scenario controls for the local fallback simulator (active only when the
+          backend is offline). In live mode the backend's simulated clock advances on
+          its own and reaches 5 PM within about a minute.
         </p>
         <button id="debug-trigger-5pm" class="w-full text-[13px] font-medium text-white rounded-md px-3 py-2 transition-colors" style="background:#2a78d6">Trigger 5 PM Scenario</button>
         <div class="grid grid-cols-2 gap-2">
@@ -1184,15 +1184,7 @@
 
   $("debug-trigger-5pm").addEventListener("click", async () => {
     if (mode === "live") {
-      debugStatus.textContent = "Posting to /api/debug/trigger-alert…";
-      try {
-        const res = await fetch("/api/debug/trigger-alert", { method: "POST" });
-        debugStatus.textContent = res.ok ? "Sent — backend will emit the anomaly." : `Backend replied ${res.status}; sent WebSocket fallback.`;
-        if (!res.ok && ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: "debug", action: "trigger-alert" }));
-      } catch {
-        if (ws?.readyState === WebSocket.OPEN) { ws.send(JSON.stringify({ type: "debug", action: "trigger-alert" })); debugStatus.textContent = "HTTP failed; sent WebSocket fallback."; }
-        else debugStatus.textContent = "Backend unreachable.";
-      }
+      debugStatus.textContent = "In live mode the backend's simulated clock advances on its own — it reaches 5 PM within about a minute, and the after-hours alert then appears in the Alerts panel automatically.";
     } else { Simulator.trigger5pm(); debugStatus.textContent = "Scenario injected into local simulator."; }
   });
   $("debug-all-off").addEventListener("click", () => {
