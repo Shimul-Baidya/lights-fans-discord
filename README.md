@@ -2,7 +2,7 @@
 
 A monitoring system for a small office that lets anyone track lights, fans, and electricity usage through a live web dashboard and a Discord bot. Built for the Techathon Nationals preliminary round (IUT Robotics Society).
 
-> Status: Architecture and diagrams complete. Backend, dashboard, and bot implementation in progress. This README will be updated with setup/run instructions once each component lands.
+> Status: Architecture and diagrams complete. Phase 0 de-risking prototypes (WebSocket broadcast, hello-world Discord bot) are working. Full backend, dashboard, and bot implementation in progress.
 
 ## The Problem
 
@@ -69,13 +69,50 @@ Response phrasing is produced by a configurable LLM provider, selected via envir
 ```
 lights-fans-discord/
 ├── README.md
+├── backend/
+│   ├── main.py              # FastAPI app + WebSocket broadcast proof-of-concept
+│   ├── static/index.html    # bare page proving live update with no refresh
+│   └── requirements.txt
+├── bot/
+│   ├── bot.py                # hello-world Discord bot (!ping), correct intents
+│   ├── requirements.txt
+│   └── .env.example
 └── docs/
     └── diagrams/
         ├── system-architecture.drawio      # editable source (draw.io)
         └── lights_fans_discord.drawio.svg  # exported diagram, embedded above
 ```
 
-This will grow to include `backend/`, `dashboard/`, and `bot/` directories as implementation proceeds.
+`backend/` and `bot/` currently hold Phase 0 proofs-of-concept, not the final implementation — they confirm the WebSocket broadcast mechanism and the Discord bot's connection/intents work before Phase 1–3 build the real device state, dashboard, and commands on top. The dashboard will move from `backend/static/` into its own directory once it's more than a single test page.
+
+## Running the Phase 0 Prototypes
+
+**WebSocket broadcast (backend/):**
+
+```bash
+cd backend
+python3 -m venv venv && source venv/bin/activate
+pip install -r requirements.txt
+uvicorn main:app --reload
+```
+
+Open `http://127.0.0.1:8000` in a browser. The counter, server time, and connected-client count update once per second with no page refresh — this is the same push mechanism the real dashboard will use for device state.
+
+**Discord bot (bot/):**
+
+```bash
+cd bot
+python3 -m venv venv && source venv/bin/activate
+pip install -r requirements.txt
+cp .env.example .env   # then edit .env and paste in a real bot token
+python3 bot.py
+```
+
+Requires a Discord application with a bot user:
+1. [discord.com/developers/applications](https://discord.com/developers/applications) → New Application → Bot tab → Reset Token, copy it into `.env`.
+2. On the same Bot tab, enable **Message Content Intent** — without this the bot connects but silently ignores every command.
+3. OAuth2 → URL Generator → scope `bot`, permission `Send Messages` → open the generated URL to invite it to a test server.
+4. Run `python3 bot.py`, then type `!ping` in a channel the bot can see; it should reply "pong — bot is alive and reading commands."
 
 ## Diagramming Tool Note
 

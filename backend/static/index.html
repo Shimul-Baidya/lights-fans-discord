@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>WebSocket Proof of Concept — Lights, Fans, Discord</title>
+  <style>
+    body {
+      font-family: -apple-system, Segoe UI, Roboto, sans-serif;
+      background: #0f172a;
+      color: #e2e8f0;
+      padding: 2rem;
+      max-width: 640px;
+      margin: 0 auto;
+    }
+    h1 { font-size: 1.25rem; font-weight: 600; }
+    .card {
+      background: #1e293b;
+      border-radius: 12px;
+      padding: 1.5rem;
+      margin-top: 1rem;
+    }
+    .label { color: #94a3b8; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em; }
+    .value { font-size: 2.5rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+    .status { display: inline-block; padding: 0.2rem 0.6rem; border-radius: 999px; font-size: 0.8rem; }
+    .status.connected { background: #14532d; color: #86efac; }
+    .status.disconnected { background: #7f1d1d; color: #fca5a5; }
+  </style>
+</head>
+<body>
+  <h1>Phase 0 Proof of Concept: FastAPI WebSocket &rarr; Browser</h1>
+  <p>This page updates on its own. No refresh, no polling &mdash; the server pushes every second.</p>
+
+  <div class="card">
+    <div class="label">Connection</div>
+    <span class="status disconnected" id="status">connecting&hellip;</span>
+  </div>
+
+  <div class="card">
+    <div class="label">Counter (server-pushed)</div>
+    <div class="value" id="counter">&mdash;</div>
+  </div>
+
+  <div class="card">
+    <div class="label">Server time</div>
+    <div class="value" id="time">&mdash;</div>
+  </div>
+
+  <div class="card">
+    <div class="label">Connected clients</div>
+    <div class="value" id="clients">&mdash;</div>
+  </div>
+
+  <script>
+    const statusEl = document.getElementById("status");
+    const counterEl = document.getElementById("counter");
+    const timeEl = document.getElementById("time");
+    const clientsEl = document.getElementById("clients");
+
+    const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
+    const ws = new WebSocket(`${proto}//${window.location.host}/ws`);
+
+    ws.onopen = () => {
+      statusEl.textContent = "connected";
+      statusEl.className = "status connected";
+    };
+    ws.onclose = () => {
+      statusEl.textContent = "disconnected";
+      statusEl.className = "status disconnected";
+    };
+    ws.onerror = () => {
+      statusEl.textContent = "error";
+      statusEl.className = "status disconnected";
+    };
+    ws.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+      counterEl.textContent = data.counter;
+      timeEl.textContent = data.server_time;
+      clientsEl.textContent = data.connected_clients;
+    };
+  </script>
+</body>
+</html>
