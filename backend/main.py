@@ -9,6 +9,7 @@ from pathlib import Path
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse
+from fastapi.staticfiles import StaticFiles
 
 import simulator
 from api import router as api_router
@@ -26,12 +27,14 @@ async def lifespan(_app: FastAPI):
 app = FastAPI(title="Lights, Fans, Discord — Backend", lifespan=lifespan)
 app.include_router(api_router)
 
-INDEX_HTML = (Path(__file__).parent / "static" / "index.html").read_text()
+SMOKE_HTML = (Path(__file__).parent / "static" / "index.html").read_text()
+FRONTEND_DIR = Path(__file__).parent.parent / "frontend"
 
 
-@app.get("/", response_class=HTMLResponse)
-async def index():
-    return INDEX_HTML
+@app.get("/smoke", response_class=HTMLResponse)
+async def smoke():
+    """Raw /ws/dashboard snapshot viewer — kept for debugging."""
+    return SMOKE_HTML
 
 
 @app.websocket("/ws/dashboard")
@@ -47,3 +50,8 @@ async def ws_dashboard(websocket: WebSocket):
             await websocket.receive_text()
     except WebSocketDisconnect:
         manager.disconnect(websocket)
+
+
+# Dashboard (frontend/index.html + its assets) served at /. Mounted last so the
+# /api, /ws/dashboard, and /smoke routes above always win route matching.
+app.mount("/", StaticFiles(directory=FRONTEND_DIR, html=True), name="dashboard")
