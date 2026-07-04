@@ -2,6 +2,8 @@
 
 This is a representative circuit for **Work Room 1** (2 fans + 3 lights = 5 devices), built in [Wokwi](https://wokwi.com). Per the problem statement, wiring every one of the 15 devices isn't required — one room is enough to demonstrate the sensing design.
 
+![Circuit Schematic](circuit_schematic.png)
+
 ## Why this design
 
 An ESP32's GPIO pins are 3.3V logic. They cannot be wired directly to a 220V fan or light circuit — doing so would destroy the board and is a shock/fire hazard. So the ESP32 never touches mains power in this design. Instead:

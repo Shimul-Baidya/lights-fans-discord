@@ -22,7 +22,7 @@ No physical hardware is used. Device state is simulated by the backend and is dy
 
 ## Architecture
 
-![System Architecture](docs/diagrams/lights_fans_discord.drawio.svg)
+![System Architecture](docs/diagrams/system-architecture.svg)
 
 Source (editable in [draw.io](https://app.diagrams.net)): [`docs/diagrams/system-architecture.drawio`](docs/diagrams/system-architecture.drawio)
 
@@ -89,7 +89,7 @@ lights-fans-discord/
 └── docs/
     └── diagrams/
         ├── system-architecture.drawio      # editable source (draw.io)
-        └── lights_fans_discord.drawio.svg  # exported diagram, embedded above
+        └── system-architecture.svg         # exported diagram, embedded above
 ```
 
 `bot/` currently holds a Phase 0 proof-of-concept — it confirms the Discord bot's connection and intents work before Phase 3 builds the real commands on top. The dashboard lives in its own not-yet-created directory (`frontend/`) built against the same `/ws/dashboard` contract `backend/static/index.html` exercises.
