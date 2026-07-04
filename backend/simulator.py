@@ -25,8 +25,10 @@ DRAWING_ROOM = "Drawing Room"
 class Simulator:
     def __init__(self):
         self.rng = random.Random(config.RANDOM_SEED)
-        # The occupancy the model is currently driving each room toward.
-        self.occupied = {r: False for r in config.ROOMS}
+        # The occupancy the model is currently driving each room toward. Aliased to
+        # shared state so the debug endpoint (force_left_on) can pin a room and the
+        # next tick won't override the forced after-hours scenario.
+        self.occupied = office.occupied
 
     def tick(self, now: datetime) -> None:
         # Work rooms are occupied exactly during office hours. Keeping them fully

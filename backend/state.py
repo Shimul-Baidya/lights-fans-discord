@@ -62,6 +62,11 @@ class OfficeState:
         # when each room most recently became fully on (None if it isn't).
         self.active_alerts: dict[str, Alert] = {}
         self.room_all_on_since: dict[str, datetime | None] = {r: None for r in config.ROOMS}
+        # Which rooms the occupancy simulator is currently driving 'occupied'.
+        # Held on shared state (not private to the simulator) so the debug endpoint
+        # can pin a room's occupancy when forcing an after-hours scenario. See
+        # force_left_on() and simulator.Simulator.
+        self.occupied: dict[str, bool] = {r: False for r in config.ROOMS}
 
     def _build_devices(self, now: datetime) -> list[DeviceState]:
         devices: list[DeviceState] = []
@@ -100,6 +105,20 @@ class OfficeState:
             self.room_all_on_since[room] = now
         elif not all_on:
             self.room_all_on_since[room] = None
+
+    def force_left_on(self, room: str, now: datetime, count: int = 2) -> None:
+        """Debug affordance: simulate devices 'left on after hours'. Switches the
+        room off, turns `count` of its devices back on, and pins the room as
+        unoccupied so the simulator's next tick won't sweep them off again. The
+        after-hours alert then fires from the real device state + the (jumped)
+        clock -- no alert is fabricated."""
+        devs = self.room_devices(room)
+        for d in devs:
+            d.set(False, now)
+        for d in devs[:count]:
+            d.set(True, now)
+        self.occupied[room] = False
+        self.refresh_room_all_on(room, now)
 
     # --- serialization to the API contract -----------------------------------
     def room_status(self, room: str) -> RoomStatus:

@@ -24,3 +24,11 @@ class SimClock:
     def now(self) -> datetime:
         real_elapsed = time.monotonic() - self._real_start
         return self._sim_start + timedelta(seconds=real_elapsed * self._speed)
+
+    def jump_to(self, target: datetime) -> None:
+        """Debug: re-anchor the clock so now() returns `target`, then keep running
+        forward from there at the same speed. Used by the /api/debug endpoint to
+        fast-forward past office close on demand instead of waiting for the sim day.
+        """
+        self._sim_start = target
+        self._real_start = time.monotonic()

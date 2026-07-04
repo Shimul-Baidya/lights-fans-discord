@@ -1180,18 +1180,29 @@
   $("ver-btn").addEventListener("click", () => modal.classList.remove("hidden"));
   $("debug-close").addEventListener("click", () => modal.classList.add("hidden"));
   $("debug-backdrop").addEventListener("click", () => modal.classList.add("hidden"));
-  document.addEventListener("keydown", (e) => { if (e.key === "Escape") modal.classList.add("hidden"); });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") { modal.classList.add("hidden"); return; }
+    // Ctrl/⌘ + Shift + D — toggle the simulation debugger (developer tooling).
+    if (e.shiftKey && (e.ctrlKey || e.metaKey) && (e.key === "D" || e.key === "d")) {
+      e.preventDefault();
+      modal.classList.toggle("hidden");
+    }
+  });
 
   $("debug-trigger-5pm").addEventListener("click", async () => {
     if (mode === "live") {
-      debugStatus.textContent = "Posting to /api/debug/trigger-alert…";
+      debugStatus.textContent = "Fast-forwarding the sim clock past 17:00…";
       try {
         const res = await fetch("/api/debug/trigger-alert", { method: "POST" });
-        debugStatus.textContent = res.ok ? "Sent — backend will emit the anomaly." : `Backend replied ${res.status}; sent WebSocket fallback.`;
-        if (!res.ok && ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: "debug", action: "trigger-alert" }));
+        if (res.ok) {
+          const j = await res.json().catch(() => ({}));
+          const hhmm = typeof j.sim_time === "string" ? j.sim_time.slice(11, 16) : "17:05";
+          debugStatus.textContent = `Sim clock jumped to ${hhmm} — after-hours alert firing.`;
+        } else {
+          debugStatus.textContent = `Backend replied ${res.status}.`;
+        }
       } catch {
-        if (ws?.readyState === WebSocket.OPEN) { ws.send(JSON.stringify({ type: "debug", action: "trigger-alert" })); debugStatus.textContent = "HTTP failed; sent WebSocket fallback."; }
-        else debugStatus.textContent = "Backend unreachable.";
+        debugStatus.textContent = "Backend unreachable.";
       }
     } else { Simulator.trigger5pm(); debugStatus.textContent = "Scenario injected into local simulator."; }
   });
