@@ -32,14 +32,15 @@ The system has one backend that acts as the single source of truth. Both the web
 [Simulated Device Layer] → [Backend API] → [Web UI] && [Discord Bot] → User
 ```
 
+Realtime path: the simulator updates the shared device state on every tick; the backend broadcasts that state over WebSocket to every connected dashboard client; the dashboard applies the update immediately, with no polling and no page refresh. This path is marked in bold blue on the diagram. REST reads, alert evaluation, and energy accumulation branch off the same shared state but are on-demand, not push-based, and are marked in gray.
+
 **Simulated Device Layer** — An asyncio background task inside the backend that owns an in-memory state for all 15 devices (status, wattage when on, room, last-changed timestamp) and advances a simulated clock so office-hours and continuous-on alert conditions can actually be demonstrated without waiting in real time.
 
 **Backend (FastAPI)**
 - REST API (`/api/status`, `/api/room/{name}`, `/api/usage`, `/api/alerts`) — used by the Discord bot and for one-off queries.
-- WebSocket endpoint (`/ws/dashboard`) — pushes state changes to the web dashboard so it updates live, without a page refresh.
+- WebSocket endpoint (`/ws/dashboard`) — broadcasts every device state change to all connected dashboard clients as it happens.
 - Alert engine — evaluates two conditions on every simulator tick: a device still on outside 9 AM–5 PM office hours, and a room where all devices have been on continuously for more than 2 hours. Alerts are timestamped.
 - Energy accumulator — integrates power draw over time to produce an estimated kWh figure for the day (used by `!usage`).
-- LLM layer (optional) — turns a structured data summary into a friendlier sentence for the Discord bot, with a static-template fallback if no API key is configured, so the bot still works out of the box for anyone cloning the repo.
 
 **Web Dashboard** — A single-page HTML/CSS/JS app served by the backend. Shows a live device status panel grouped by room, a live power meter (office-wide total plus per-room breakdown), and an active alerts panel. Connects to the backend over WebSocket, so updates appear without a manual refresh.
 
@@ -53,13 +54,15 @@ The system has one backend that acts as the single source of truth. Both the web
 
 The bot also posts proactively to a designated channel when an alert condition triggers, so the boss doesn't have to ask.
 
+Response phrasing is produced by a configurable LLM provider, selected via environment variable rather than hardcoded into the bot. If the provider call fails, times out, or returns a quota error, the bot falls back to a template-based response built from the same data. Both paths return through the bot, so it always answers.
+
 ## Design Decisions
 
 - **15 devices, not simulated hardware.** Per the problem statement's clarifications, no physical hardware is required — the office layout (2 fans + 3 lights × 3 rooms) is simulated entirely in the backend.
 - **WebSocket over polling.** The dashboard requirement is explicit that updates must happen without a page refresh; WebSocket push is the direct way to satisfy that rather than short-interval polling.
 - **Bot talks to the REST API, not the backend internals.** This keeps the bot and dashboard architecturally identical consumers of one API, matching the required `[Backend API] → [Web UI] && [Discord Bot]` flow, and makes it possible to run the bot on a different machine from the backend.
 - **Simulated clock with adjustable speed.** Office-hours and 2-hour-continuous-on alert conditions take real hours to occur naturally. The simulator's clock can run faster than real time so these conditions can be triggered and demonstrated within a short demo video.
-- **LLM responses have a fallback.** Anyone cloning this repo without an LLM API key configured should still get a working, readable bot — just with template-based phrasing instead of LLM-generated phrasing.
+- **LLM provider is configurable, not hardcoded.** The bot calls whichever provider is set via environment variable and falls back to template responses on failure, timeout, or quota exhaustion. The provider can be swapped without changing the bot's architecture, and the bot never fails to respond.
 
 ## Repository Structure
 
