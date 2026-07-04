@@ -1,0 +1,1215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Smart Eco Office Monitor</title>
+  <link rel="icon" type="image/png" href="icons8-energy-saving-64.png" />
+
+  <!-- Apply saved theme before paint (avoids flash) -->
+  <script>
+    (function () {
+      var q = new URLSearchParams(location.search).get("theme");
+      var t = "dark";
+      try { t = q || localStorage.getItem("gw-theme") || "dark"; } catch (e) { t = q || "dark"; }
+      document.documentElement.setAttribute("data-theme", t === "light" ? "light" : "dark");
+    })();
+  </script>
+
+  <!-- Tailwind CDN (layout utilities only) -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+
+  <style>
+    /* ================================================================== */
+    /*  Design tokens — dark monitoring theme                             */
+    /* ================================================================== */
+    /* Dark theme (default) */
+    :root, :root[data-theme="dark"] {
+      --bg:            #090d14;
+      --panel:         #0f141e;
+      --panel-2:       #121826;
+      --border:        rgba(148,163,184,0.12);
+      --border-strong: rgba(148,163,184,0.22);
+      --txt:           #e6edf5;
+      --txt-2:         #93a1b3;
+      --muted:         #5b6675;
+      --cyan:          #38bdf8;
+      --emerald:       #34d399;
+      --amber:         #fbbf24;
+      --red:           #f87171;
+      --warn:          #f59e0b;
+      /* surfaces referenced by the floor plan + chips */
+      --canvas:        #0b0f18;
+      --grid-line:     rgba(148,163,184,0.045);
+      --chip-bg:       rgba(9,13,20,0.62);
+      --tooltip-bg:    #060a11;
+      --kpi-hi:        rgba(56,189,248,0.28);
+      /* brand green (energy-saving logo) */
+      --brand-1:       #6ee7b7;
+      --brand-2:       #10b981;
+      --brand-glow:    rgba(16,185,129,0.28);
+    }
+
+    /* Light theme */
+    :root[data-theme="light"] {
+      --bg:            #eef1f6;
+      --panel:         #ffffff;
+      --panel-2:       #ffffff;
+      --border:        rgba(15,23,42,0.10);
+      --border-strong: rgba(15,23,42,0.16);
+      --txt:           #0f172a;
+      --txt-2:         #475569;
+      --muted:         #94a3b8;
+      --cyan:          #0284c7;
+      --emerald:       #059669;
+      --amber:         #d97706;
+      --red:           #dc2626;
+      --warn:          #d97706;
+      --canvas:        #e8ecf3;
+      --grid-line:     rgba(15,23,42,0.05);
+      --chip-bg:       rgba(255,255,255,0.92);
+      --tooltip-bg:    #0f172a;
+      --kpi-hi:        rgba(2,132,199,0.22);
+      /* brand green (energy-saving logo) */
+      --brand-1:       #10b981;
+      --brand-2:       #047857;
+      --brand-glow:    rgba(4,120,87,0.20);
+    }
+
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      background: var(--bg);
+      color: var(--txt);
+      font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    .mono { font-family: 'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace; font-feature-settings: "tnum"; }
+
+    /* ---- Panels (Grafana-style) ------------------------------------- */
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+    }
+    .panel-hd {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 9px 14px;
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    .panel-hd h2 {
+      font-size: 11px; font-weight: 600;
+      letter-spacing: 0.09em; text-transform: uppercase;
+      color: var(--txt-2);
+    }
+    .panel-tag {
+      font-size: 10.5px; letter-spacing: 0.04em;
+      color: var(--txt-2);
+    }
+
+    /* ---- Header ----------------------------------------------------- */
+    .hdr {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 18px; height: 56px;
+      background: var(--panel);
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    .brand-mark {
+      width: 42px; height: 42px; border-radius: 10px;
+      background: var(--brand-glow);
+      border: 1px solid rgba(16,185,129,0.30);
+      display: flex; align-items: center; justify-content: center;
+      box-shadow: 0 0 18px var(--brand-glow);
+      flex-shrink: 0;
+    }
+    .brand-mark img { width: 30px; height: 30px; display: block; }
+    .brand-title {
+      font-size: 22px; font-weight: 700; line-height: 1.05;
+      letter-spacing: -0.01em;
+      background: linear-gradient(120deg, var(--brand-1), var(--brand-2));
+      -webkit-background-clip: text; background-clip: text;
+      -webkit-text-fill-color: transparent; color: transparent;
+      filter: drop-shadow(0 0 10px var(--brand-glow));
+    }
+    .hdr-stat { display: flex; flex-direction: column; align-items: flex-end; line-height: 1.2; }
+    .hdr-k { font-size: 9.5px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
+    .hdr-v { font-size: 13px; color: var(--txt); }
+    .hdr-sep { width: 1px; height: 26px; background: var(--border); }
+    .ind { display: flex; align-items: center; gap: 7px; }
+    .ind-label { font-size: 11px; letter-spacing: 0.07em; text-transform: uppercase; }
+    .theme-btn {
+      width: 30px; height: 30px; border-radius: 6px;
+      border: 1px solid var(--border); background: transparent;
+      color: var(--txt-2); display: flex; align-items: center; justify-content: center;
+      cursor: pointer; transition: background 0.12s ease, color 0.12s ease, border-color 0.12s ease;
+    }
+    .theme-btn:hover { background: rgba(148,163,184,0.1); color: var(--txt); border-color: var(--border-strong); }
+    .theme-btn svg { width: 16px; height: 16px; }
+
+    /* ---- Status dots ------------------------------------------------ */
+    .dot { width: 7px; height: 7px; border-radius: 9999px; background: var(--muted); flex-shrink: 0; }
+    .dot.on   { background: var(--emerald); box-shadow: 0 0 7px rgba(52,211,153,0.75); }
+    .dot.cyan { background: var(--cyan);    box-shadow: 0 0 7px rgba(56,189,248,0.75); }
+    .dot.warn { background: var(--warn);    box-shadow: 0 0 7px rgba(245,158,11,0.6); }
+    .dot.off  { background: var(--muted); }
+    .dot.pulse { animation: soft-pulse 1.8s ease-in-out infinite; }
+    @keyframes soft-pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+    /* ---- Hero / KPIs ------------------------------------------------ */
+    .hero-val { font-size: 46px; font-weight: 600; color: var(--cyan); line-height: 1; letter-spacing: -0.01em; }
+    .hero-unit { font-size: 15px; color: var(--txt-2); margin-left: 3px; }
+    .kpi-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; background: var(--border); border: 1px solid var(--border); border-radius: 5px; overflow: hidden; }
+    .kpi { background: var(--panel); padding: 9px 12px; }
+    .kpi-k { font-size: 9.5px; letter-spacing: 0.09em; text-transform: uppercase; color: var(--muted); }
+    .kpi-v { font-size: 17px; color: var(--txt); margin-top: 2px; }
+
+    /* ---- Room meters ------------------------------------------------ */
+    .room-row + .room-row { margin-top: 11px; }
+    .room-top { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 6px; }
+    .room-lbl { font-size: 10.5px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--txt-2); }
+    .room-val { font-size: 12px; color: var(--txt); }
+    .room-track { height: 3px; border-radius: 2px; background: rgba(148,163,184,0.12); overflow: hidden; }
+    .room-fill { height: 100%; border-radius: 2px; background: linear-gradient(90deg, #22d3ee, #34d399 55%, #fbbf24); transition: width 0.6s cubic-bezier(0.22,1,0.36,1); }
+
+    /* ---- Device registry rows (dense, single line) ------------------ */
+    .reg-room { display: flex; align-items: center; justify-content: space-between; padding: 11px 14px 5px; }
+    .reg-room .rn { font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+    .reg-room .rw { font-size: 10.5px; color: var(--txt-2); }
+    .dev-row {
+      display: grid; grid-template-columns: 18px 1fr auto 52px;
+      align-items: center; gap: 10px;
+      padding: 6px 14px;
+      border-top: 1px solid var(--border);
+      transition: background 0.12s ease;
+      cursor: default;
+    }
+    .dev-row:hover { background: rgba(148,163,184,0.05); }
+    .dev-icon { color: var(--muted); display: flex; transition: color 0.4s ease; }
+    .dev-name { font-size: 12.5px; color: var(--txt); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .dev-watt { font-size: 11.5px; color: var(--txt-2); text-align: right; }
+    .dev-state { display: flex; align-items: center; gap: 6px; justify-content: flex-end; font-size: 10.5px; letter-spacing: 0.06em; color: var(--muted); }
+    .dev-row.on .dev-state { color: var(--emerald); }
+    .dev-row.on .dev-icon.fan-i { color: var(--cyan); }
+    .dev-row.on .dev-icon.light-i { color: var(--amber); }
+
+    /* ---- Alert event log -------------------------------------------- */
+    .log-row {
+      display: grid; grid-template-columns: 62px 1fr; gap: 10px;
+      padding: 9px 13px;
+      border-left: 2px solid transparent;
+      border-bottom: 1px solid var(--border);
+      animation: log-in 0.22s ease-out;
+    }
+    @keyframes log-in { from { opacity: 0; transform: translateY(-3px); } to { opacity: 1; transform: none; } }
+    .log-row.sev-after-hours { border-left-color: var(--warn); }
+    .log-row.sev-continuous  { border-left-color: var(--cyan); }
+    .log-time { font-size: 10.5px; color: var(--muted); white-space: nowrap; padding-top: 1px; }
+    .log-head { display: flex; align-items: center; gap: 8px; }
+    .log-sev { font-size: 10px; font-weight: 700; letter-spacing: 0.09em; }
+    .sev-after-hours .log-sev { color: var(--warn); }
+    .sev-continuous  .log-sev { color: var(--cyan); }
+    .log-room { font-size: 10px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--txt-2); }
+    .log-msg { font-size: 11.5px; color: var(--txt-2); line-height: 1.45; margin-top: 3px; }
+
+    /* ================================================================== */
+    /*  Floor plan                                                        */
+    /* ================================================================== */
+    .fp-canvas {
+      background-color: var(--canvas);
+      background-image:
+        linear-gradient(var(--grid-line) 1px, transparent 1px),
+        linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
+      background-size: 26px 26px;
+    }
+    #floorplan {
+      position: relative;
+      width: 100%;
+      max-height: 100%;
+      aspect-ratio: 1964 / 1182;
+      border: 1px solid var(--border-strong);
+      border-radius: 6px;
+      overflow: hidden;
+      background-color: var(--canvas);
+      background-position: center;
+      background-size: cover;
+      background-repeat: no-repeat;
+      user-select: none;
+      box-shadow: 0 6px 26px rgba(0,0,0,0.35);
+    }
+
+    /* Device chip on the plan */
+    .device-overlay {
+      position: absolute;
+      transform: translate(-50%, -50%);
+      width: 3.6%;
+      min-width: 22px;
+      aspect-ratio: 1;
+      border-radius: 9999px;
+      background: var(--chip-bg);
+      border: 1px solid var(--border-strong);
+      backdrop-filter: blur(2px);
+      display: flex; align-items: center; justify-content: center;
+      transition: border-color 0.45s ease, box-shadow 0.45s ease;
+      z-index: 2;
+    }
+    .device-overlay svg { width: 66%; height: 66%; }
+    .device-overlay .dev-tag {
+      position: absolute; bottom: 118%; left: 50%; transform: translateX(-50%);
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 9px; letter-spacing: 0.04em; color: var(--muted);
+      white-space: nowrap; pointer-events: none;
+      transition: color 0.4s ease;
+    }
+
+    /* Fan */
+    .fan-rotor { transform-box: fill-box; transform-origin: center; }
+    .device-overlay.fan.device-on .fan-rotor { animation: fan-spin 3.4s linear infinite; }
+    @keyframes fan-spin { from { transform: rotate(0); } to { transform: rotate(360deg); } }
+    .device-overlay .fan-blades { fill: #64748b; transition: fill 0.5s ease; }
+    .device-overlay.fan.device-on .fan-blades { fill: var(--cyan); }
+    .device-overlay.fan.device-on {
+      border-color: rgba(56,189,248,0.6);
+      box-shadow: 0 0 0 1px rgba(56,189,248,0.25), 0 0 14px 2px rgba(56,189,248,0.28);
+    }
+    .device-overlay.fan.device-on .dev-tag { color: var(--cyan); }
+
+    /* Light */
+    .device-overlay .bulb { fill: #475569; stroke: #64748b; transition: fill 0.5s ease, stroke 0.5s ease; }
+    .device-overlay .bulb-core { fill: #1e293b; transition: fill 0.5s ease; }
+    .device-overlay.light.device-on .bulb { fill: var(--amber); stroke: #f59e0b; }
+    .device-overlay.light.device-on .bulb-core { fill: #fff7d6; }
+    .device-overlay.light.device-on {
+      border-color: rgba(251,191,36,0.6);
+      box-shadow: 0 0 0 1px rgba(251,191,36,0.3), 0 0 14px 2px rgba(251,191,36,0.3);
+    }
+    .device-overlay.light.device-on .dev-tag { color: var(--amber); }
+    /* Soft radial glow cast onto the room */
+    .device-overlay.light.device-on::before,
+    .device-overlay.fan.device-on::before {
+      content: ""; position: absolute; inset: -280%;
+      border-radius: 9999px; pointer-events: none; z-index: -1;
+      animation: glow-pulse 3.4s ease-in-out infinite;
+    }
+    .device-overlay.light.device-on::before {
+      background: radial-gradient(circle, rgba(251,191,36,0.42) 0%, rgba(251,191,36,0.14) 38%, transparent 70%);
+    }
+    .device-overlay.fan.device-on::before {
+      inset: -180%;
+      background: radial-gradient(circle, rgba(56,189,248,0.28) 0%, rgba(56,189,248,0.08) 42%, transparent 72%);
+    }
+    @keyframes glow-pulse { 0%,100% { opacity: 0.72; transform: scale(1); } 50% { opacity: 1; transform: scale(1.07); } }
+
+    /* Room label chip */
+    .room-chip {
+      position: absolute; transform: translateX(-50%);
+      background: var(--chip-bg);
+      border: 1px solid var(--border-strong);
+      border-radius: 5px; padding: 2px 8px;
+      display: flex; align-items: center; gap: 8px;
+      z-index: 3; backdrop-filter: blur(3px);
+    }
+    .room-chip .rc-name { font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--txt); font-weight: 600; }
+    .room-chip .rc-watt { font-size: 10px; color: var(--cyan); }
+
+    /* Floor-plan tooltip */
+    #fp-tooltip {
+      position: absolute; z-index: 40; pointer-events: none;
+      background: var(--tooltip-bg); color: #f1f5f9;
+      border: 1px solid var(--border-strong);
+      border-radius: 5px; padding: 5px 8px;
+      font-size: 11px; opacity: 0; transition: opacity 0.1s ease;
+      box-shadow: 0 6px 18px rgba(0,0,0,0.5);
+    }
+    #fp-tooltip.visible { opacity: 1; }
+
+    /* Room summary strip below the plan */
+    .fp-summary { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+    .fp-sum-cell { border: 1px solid var(--border); border-radius: 5px; padding: 8px 11px; background: var(--panel); }
+    .fp-sum-name { font-size: 9.5px; letter-spacing: 0.09em; text-transform: uppercase; color: var(--muted); }
+    .fp-sum-row { display: flex; align-items: baseline; justify-content: space-between; margin-top: 4px; }
+    .fp-sum-on { font-size: 12px; color: var(--txt); }
+    .fp-sum-w { font-size: 12px; color: var(--cyan); }
+
+    /* ---- Sparkline -------------------------------------------------- */
+    #spark-dot { transition: none; }
+
+    /* ---- Footer ----------------------------------------------------- */
+    .ftr {
+      display: flex; align-items: center; gap: 24px;
+      padding: 7px 18px;
+      background: var(--panel);
+      border-top: 1px solid var(--border);
+      flex-shrink: 0;
+      font-size: 10.5px; letter-spacing: 0.05em;
+    }
+    .ftr-item { display: flex; align-items: center; gap: 7px; color: var(--txt-2); }
+    .ftr-item .fk { text-transform: uppercase; color: var(--muted); letter-spacing: 0.08em; }
+    .ftr .ver { margin-left: auto; color: var(--muted); cursor: pointer; transition: color 0.12s ease; }
+    .ftr .ver:hover { color: var(--txt-2); }
+
+    /* ---- Scrollbars ------------------------------------------------- */
+    .quiet-scroll::-webkit-scrollbar { width: 6px; height: 6px; }
+    .quiet-scroll::-webkit-scrollbar-track { background: transparent; }
+    .quiet-scroll::-webkit-scrollbar-thumb { background: rgba(148,163,184,0.25); border-radius: 3px; }
+    .quiet-scroll::-webkit-scrollbar-thumb:hover { background: rgba(148,163,184,0.4); }
+    .quiet-scroll { scrollbar-width: thin; scrollbar-color: rgba(148,163,184,0.25) transparent; }
+
+    /* ---- Modal ------------------------------------------------------ */
+    .modal-card { background: var(--panel-2); border: 1px solid var(--border-strong); border-radius: 8px; }
+  </style>
+</head>
+
+<body>
+  <div class="h-screen w-full flex flex-col">
+
+    <!-- ============================ Header ============================ -->
+    <header class="hdr">
+      <div class="flex items-center gap-3">
+        <div class="brand-mark">
+          <img src="icons8-energy-saving-64.png" alt="Smart Eco Office logo" />
+        </div>
+        <div>
+          <div class="brand-title">Smart Eco Office Monitor</div>
+          <div class="text-[11px] leading-tight mt-0.5" style="color:var(--muted)">IoT Energy Monitoring Hub</div>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-5">
+        <div class="hidden sm:flex hdr-stat">
+          <span class="hdr-k" id="clock-label">Local time</span>
+          <span class="hdr-v mono" id="clock">--:--:--</span>
+        </div>
+        <div class="hidden sm:block hdr-sep"></div>
+        <div class="ind">
+          <span class="dot off" id="oh-dot"></span>
+          <span class="ind-label" id="oh-text" style="color:var(--txt-2)">—</span>
+        </div>
+        <div class="hdr-sep"></div>
+        <div class="ind">
+          <span class="dot pulse" id="mode-dot"></span>
+          <span class="ind-label" id="mode-text" style="color:var(--txt-2)">Connecting</span>
+        </div>
+        <div class="hdr-sep"></div>
+        <button id="theme-btn" class="theme-btn" title="Toggle theme" aria-label="Toggle theme"></button>
+      </div>
+    </header>
+
+    <!-- ============================ Main ============================ -->
+    <main class="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-[minmax(0,300px)_minmax(0,1fr)_minmax(0,320px)] gap-3 p-3 overflow-y-auto lg:overflow-hidden">
+
+      <!-- ---------- Column 1: Alerts event log ---------- -->
+      <section class="order-3 lg:order-1 panel min-h-0">
+        <div class="panel-hd">
+          <h2>Alerts</h2>
+          <span class="panel-tag" id="alert-count">0 active</span>
+        </div>
+        <div id="alert-feed" class="flex-1 min-h-0 overflow-y-auto quiet-scroll"></div>
+      </section>
+
+      <!-- ---------- Column 2: Floor plan ---------- -->
+      <section class="order-1 lg:order-2 panel min-h-0">
+        <div class="panel-hd">
+          <h2>Office Layout</h2>
+          <div class="flex items-center gap-3.5 text-[10px]" style="color:var(--txt-2)">
+            <span class="flex items-center gap-1.5"><span class="dot" style="background:var(--amber);box-shadow:0 0 6px rgba(251,191,36,.6)"></span>LIGHT</span>
+            <span class="flex items-center gap-1.5"><span class="dot" style="background:var(--cyan);box-shadow:0 0 6px rgba(56,189,248,.6)"></span>FAN</span>
+            <span class="flex items-center gap-1.5"><span class="dot off"></span>OFF</span>
+          </div>
+        </div>
+        <div class="fp-canvas flex-1 min-h-0 p-3 flex items-center justify-center rounded-b-[6px]">
+          <div id="floorplan" style="background-image:url('layout.png')">
+            <div id="fp-tooltip"></div>
+          </div>
+        </div>
+        <div class="fp-summary p-3 border-t" style="border-color:var(--border)">
+          <!-- room summary cells injected -->
+        </div>
+      </section>
+
+      <!-- ---------- Column 3: Metrics ---------- -->
+      <section class="order-2 lg:order-3 flex flex-col gap-3 min-h-0">
+
+        <!-- Power panel -->
+        <div class="panel flex-shrink-0">
+          <div class="panel-hd"><h2>Power</h2><span class="panel-tag mono" id="power-updated">live</span></div>
+          <div class="p-4">
+            <div class="flex items-end justify-between">
+              <div>
+                <div class="mono"><span class="hero-val" id="total-power">0</span><span class="hero-unit mono">W</span></div>
+              </div>
+              <div class="relative flex-1 max-w-[150px] ml-3" id="spark-wrap">
+                <svg id="sparkline" class="w-full block" style="height:56px" viewBox="0 0 100 32" preserveAspectRatio="none">
+                  <defs>
+                    <linearGradient id="spark-grad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stop-color="rgba(56,189,248,0.28)"/>
+                      <stop offset="100%" stop-color="rgba(56,189,248,0)"/>
+                    </linearGradient>
+                  </defs>
+                  <path id="spark-area" fill="url(#spark-grad)" d=""></path>
+                  <path id="spark-line" fill="none" stroke="var(--cyan)" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round" vector-effect="non-scaling-stroke" d=""></path>
+                </svg>
+                <div id="spark-dot" class="absolute w-1.5 h-1.5 rounded-full hidden" style="background:var(--cyan);transform:translate(-50%,-50%)"></div>
+                <div id="spark-tip" class="absolute hidden mono text-[10px] px-1.5 py-0.5 rounded" style="background:var(--tooltip-bg);border:1px solid var(--border-strong);color:#f1f5f9;transform:translate(-50%,-135%);white-space:nowrap"></div>
+                <div class="text-[9px] mono text-right mt-0.5" style="color:var(--muted)">LAST 30 MIN</div>
+              </div>
+            </div>
+            <div class="kpi-grid mt-4">
+              <div class="kpi">
+                <div class="kpi-k">Devices online</div>
+                <div class="kpi-v mono"><span id="kpi-online">0</span> <span id="kpi-online-total" style="color:var(--muted)">/ 15</span></div>
+              </div>
+              <div class="kpi">
+                <div class="kpi-k">Energy today</div>
+                <div class="kpi-v mono"><span id="kpi-today">0.0000</span> <span class="text-[11px]" style="color:var(--muted)">kWh</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Rooms panel -->
+        <div class="panel flex-shrink-0">
+          <div class="panel-hd"><h2>Power by room</h2></div>
+          <div class="p-4" id="room-meters"></div>
+        </div>
+
+        <!-- Device registry panel -->
+        <div class="panel flex-1 min-h-0">
+          <div class="panel-hd"><h2>Device Registry</h2><span class="panel-tag mono" id="reg-count">0 / 15</span></div>
+          <div id="device-list" class="flex-1 min-h-0 overflow-y-auto quiet-scroll pb-1"></div>
+        </div>
+      </section>
+    </main>
+
+    <!-- ============================ Footer ============================ -->
+    <footer class="ftr">
+      <div class="ftr-item"><span class="fk">API</span><span class="dot off" id="ft-api-dot"></span><span id="ft-api">Offline</span></div>
+      <div class="ftr-item"><span class="fk">WebSocket</span><span class="dot off" id="ft-ws-dot"></span><span id="ft-ws">Disconnected</span></div>
+      <div class="ftr-item"><span class="fk">Simulator</span><span class="dot off" id="ft-sim-dot"></span><span id="ft-sim">Idle</span></div>
+      <span class="ver mono" id="ver-btn" title="Simulation debugger">v1.0.3</span>
+    </footer>
+  </div>
+
+  <!-- ============================ Debug modal ============================ -->
+  <div id="debug-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center">
+    <div id="debug-backdrop" class="absolute inset-0" style="background:rgba(3,6,12,0.66)"></div>
+    <div class="modal-card relative w-[380px] max-w-[calc(100vw-2rem)]">
+      <div class="flex items-center justify-between px-4 py-3 border-b" style="border-color:var(--border)">
+        <h3 class="text-[13px] font-semibold" style="color:var(--txt)">Simulation Debugger</h3>
+        <button id="debug-close" class="p-1 -m-1" style="color:var(--muted)">
+          <svg viewBox="0 0 20 20" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M5 5l10 10M15 5L5 15"/></svg>
+        </button>
+      </div>
+      <div class="p-4 space-y-3">
+        <p class="text-[11.5px] leading-relaxed" style="color:var(--txt-2)">
+          Force scenarios against the data source. Live mode posts to
+          <span class="mono text-[10px] px-1 py-0.5 rounded" style="background:#0b0f18;border:1px solid var(--border)">/api/debug/trigger-alert</span>;
+          simulation mode drives the local simulator.
+        </p>
+        <button id="debug-trigger-5pm" class="w-full text-[13px] font-medium text-white rounded-md px-3 py-2 transition-colors" style="background:#2a78d6">Trigger 5 PM Scenario</button>
+        <div class="grid grid-cols-2 gap-2">
+          <button id="debug-all-off" class="text-[11.5px] font-medium rounded-md px-3 py-1.5 transition-colors" style="border:1px solid var(--border-strong);color:var(--txt-2)">All devices off</button>
+          <button id="debug-randomize" class="text-[11.5px] font-medium rounded-md px-3 py-1.5 transition-colors" style="border:1px solid var(--border-strong);color:var(--txt-2)">Randomize</button>
+        </div>
+        <p id="debug-status" class="text-[11px] min-h-[16px]" style="color:var(--muted)"></p>
+      </div>
+    </div>
+  </div>
+
+  <script>
+  "use strict";
+
+  /* ==================================================================== */
+  /*  1. CONFIG                                                           */
+  /* ==================================================================== */
+  const WS_PATH = "/ws";
+  const WS_CONNECT_TIMEOUT_MS = 2500;
+  const WS_RECONNECT_EVERY_MS = 5000;
+  const SPARK_MAX_SAMPLES = 90;
+  const OFFICE_OPEN_HOUR = 9;
+  const OFFICE_CLOSE_HOUR = 17;
+
+  /* -------------------------------------------------------------------- */
+  /*  DEVICE OVERLAY POSITIONS — FINE-TUNE HERE                            */
+  /*  x / y are PERCENTAGES (0–100) of the floor-plan image, to the CENTER */
+  /*  of each chip. Nth device of a type in the payload → Nth slot below.  */
+  /*  TIP: click the floor plan — exact {x,y} is logged to the console.    */
+  /* -------------------------------------------------------------------- */
+  const DEVICE_POSITIONS = {
+    "Drawing Room": {
+      // Fans in front of the TV (brown wall unit on the right divider ~x32%)
+      fan:   [ { x: 26.5, y: 34 }, { x: 26.5, y: 50 } ],
+      // Lights in the room corners
+      light: [ { x: 7.5, y: 12 }, { x: 29.0, y: 12 }, { x: 7.5, y: 78 } ],
+    },
+    "Work Room 1": {
+      // Fans flank the center light: fan — light — fan
+      fan:   [ { x: 43.5, y: 42 }, { x: 56.5, y: 42 } ],
+      light: [ { x: 43.0, y: 17 }, { x: 58.0, y: 17 }, { x: 50.0, y: 42 } ],
+    },
+    "Work Room 2": {
+      // Fans flank the center light: fan — light — fan
+      fan:   [ { x: 75.5, y: 42 }, { x: 88.5, y: 42 } ],
+      light: [ { x: 74.5, y: 17 }, { x: 90.0, y: 17 }, { x: 82.0, y: 42 } ],
+    },
+  };
+
+  const ROOM_LABEL_POSITIONS = {
+    "Drawing Room": { x: 17.5, y: 2.0 },
+    "Work Room 1":  { x: 50.5, y: 2.0 },
+    "Work Room 2":  { x: 82.5, y: 2.0 },
+  };
+
+  /* ==================================================================== */
+  /*  2. SVG TEMPLATES                                                    */
+  /* ==================================================================== */
+  function fanSVG() {
+    return `<svg viewBox="0 0 40 40">
+      <g class="fan-rotor fan-blades">
+        <ellipse cx="20" cy="9.5" rx="4.2" ry="8"/>
+        <ellipse cx="20" cy="9.5" rx="4.2" ry="8" transform="rotate(120 20 20)"/>
+        <ellipse cx="20" cy="9.5" rx="4.2" ry="8" transform="rotate(240 20 20)"/>
+      </g>
+      <circle cx="20" cy="20" r="3.2" fill="#1e293b"/>
+    </svg>`;
+  }
+  function lightSVG() {
+    return `<svg viewBox="0 0 40 40">
+      <circle class="bulb" cx="20" cy="20" r="10" stroke-width="2"/>
+      <circle class="bulb-core" cx="20" cy="20" r="4"/>
+    </svg>`;
+  }
+  const ICON_FAN_SM = `<svg viewBox="0 0 40 40" class="w-4 h-4"><g fill="currentColor"><ellipse cx="20" cy="10" rx="4" ry="7.5"/><ellipse cx="20" cy="10" rx="4" ry="7.5" transform="rotate(120 20 20)"/><ellipse cx="20" cy="10" rx="4" ry="7.5" transform="rotate(240 20 20)"/></g><circle cx="20" cy="20" r="3.2" fill="currentColor"/></svg>`;
+  const ICON_LIGHT_SM = `<svg viewBox="0 0 40 40" class="w-4 h-4" fill="currentColor"><circle cx="20" cy="17" r="8"/><rect x="16" y="25" width="8" height="3" rx="1.5"/><rect x="17" y="29" width="6" height="2.5" rx="1.25"/></svg>`;
+  const ICON_CHECK = `<svg viewBox="0 0 20 20" class="w-5 h-5" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16Zm3.857-9.809a.75.75 0 0 0-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 1 0-1.06 1.061l2.5 2.5a.75.75 0 0 0 1.137-.089l4-5.5Z" clip-rule="evenodd"/></svg>`;
+
+  /* ==================================================================== */
+  /*  3. PAYLOAD NORMALIZER                                               */
+  /* ==================================================================== */
+  const ROOM_NAMES = ["Drawing Room", "Work Room 1", "Work Room 2"];
+
+  /* Accepts three shapes and returns one canonical structure:
+     A) Backend snapshot: { office:{ rooms:[{name, devices:[{on,watts,rated_watts}], total_watts}], total_watts },
+                            usage:{ today_kwh }, alerts:[{type,room,message,triggered_at}], sim_time }
+     B) Team dummy:       { rooms:[{name, devices:[{status,power}]}], alerts, total_power }
+     C) Prompt-doc:       { totalWattage, rooms:{ "Name":{wattage, devices} }, alerts } */
+  function normalizePayload(raw) {
+    if (!raw) return null;
+    const office = raw.office || raw;            // real payload nests rooms under `office`
+    const roomsRaw = office.rooms;
+    if (!roomsRaw) return null;                  // not a device snapshot (e.g. Phase-0 counter)
+
+    const rooms = [];
+    if (Array.isArray(roomsRaw)) {
+      for (const r of roomsRaw) rooms.push({ name: r.name, devices: (r.devices || []).map(normalizeDevice), wattage: r.total_watts ?? r.wattage });
+    } else {
+      for (const [name, r] of Object.entries(roomsRaw)) rooms.push({ name, devices: (r.devices || []).map(normalizeDevice), wattage: r.total_watts ?? r.wattage });
+    }
+    for (const room of rooms) {
+      if (room.wattage == null) room.wattage = room.devices.reduce((w, d) => w + (d.status ? d.power : 0), 0);
+    }
+
+    const total = office.total_watts ?? raw.usage?.total_watts ?? raw.total_power ?? raw.totalWattage
+      ?? rooms.reduce((w, r) => w + r.wattage, 0);
+
+    const alerts = (raw.alerts || office.alerts || []).map((a) => {
+      const category = a.type || a.category || a.severity || inferCategory(a.message || "");
+      return {
+        id: a.id || `${category}:${a.room || ""}`,
+        timestamp: fmtTime(a.triggered_at || a.timestamp || a.time || ""),
+        message: a.message || String(a),
+        room: a.room || parseRoom(a.message || ""),
+        category,
+      };
+    });
+
+    return {
+      rooms,
+      alerts,
+      totalPower: total,
+      energyToday: raw.usage?.today_kwh ?? null,   // backend provides; else computed locally
+      simTime: raw.sim_time || raw.usage?.sim_time || null,
+    };
+  }
+  function normalizeDevice(d) {
+    return {
+      id: d.id,
+      name: d.name || null,
+      type: (d.type || "").toLowerCase(),
+      status: d.on ?? d.status ?? false,                 // real payload uses `on`
+      power: d.rated_watts ?? d.power ?? d.wattage ?? (String(d.type).toLowerCase() === "fan" ? 60 : 15),
+      lastChanged: d.last_changed || d.lastChanged || null,
+    };
+  }
+  function parseRoom(msg) { const m = ROOM_NAMES.find((r) => msg.includes(r)); return m || ""; }
+  function inferCategory(msg) { return /continuous|2\+ hours|hours straight/i.test(msg) ? "continuous_on" : "after_hours"; }
+
+  /* ISO datetime -> HH:MM:SS; passes through values already in clock form */
+  function fmtTime(v) {
+    if (!v) return "";
+    if (typeof v === "string" && v.includes("T")) {
+      const d = new Date(v);
+      if (!isNaN(d)) return d.toLocaleTimeString("en-GB");
+    }
+    return v;
+  }
+
+  /* ==================================================================== */
+  /*  4. DOM RENDERING                                                    */
+  /* ==================================================================== */
+  const $ = (id) => document.getElementById(id);
+  const floorplanEl = $("floorplan");
+
+  let structureKey = "";
+  let latest = null;
+  const powerHistory = [];
+  let energyTodayKwh = 0;
+  let lastEnergyTs = 0;
+  let liveSimClock = null;   // Date from backend sim_time (drives header clock + office hours in live mode)
+  let mode = "connecting";   // connecting | live | sim  (declared early: tickClock reads it)
+
+  function applyPayload(data) {
+    latest = data;
+    const key = data.rooms.map((r) => r.name + ":" + r.devices.map((d) => d.id).join(",")).join("|");
+    if (key !== structureKey) {
+      structureKey = key;
+      buildOverlays(data);
+      buildRoomMeters(data);
+      buildDeviceList(data);
+      buildSummary(data);
+    }
+    if (data.simTime) { const d = new Date(data.simTime); if (!isNaN(d)) { liveSimClock = d; tickClock(); } }
+    if (data.energyToday == null) accrueEnergy(data.totalPower);
+    updateHero(data);
+    updateOverlays(data);
+    updateRoomMeters(data);
+    updateDeviceList(data);
+    updateSummary(data);
+    renderAlerts(data.alerts);
+    pushPowerSample(data.totalPower);
+  }
+
+  function accrueEnergy(watts) {
+    const now = performance.now();
+    if (lastEnergyTs) energyTodayKwh += (watts * (now - lastEnergyTs)) / 3.6e9;
+    lastEnergyTs = now;
+  }
+
+  /* ---------- Hero + KPIs ---------- */
+  function updateHero(data) {
+    $("total-power").textContent = Math.round(data.totalPower).toLocaleString();
+    let on = 0, total = 0;
+    for (const r of data.rooms) for (const d of r.devices) { total++; if (d.status) on++; }
+    const today = data.energyToday != null ? data.energyToday : energyTodayKwh;
+    $("kpi-online").textContent = on;
+    $("kpi-today").textContent = today.toFixed(3);
+    $("kpi-online-total").textContent = `/ ${total}`;
+    $("reg-count").textContent = `${on} / ${total}`;
+  }
+
+  /* ---------- Floor-plan overlays ---------- */
+  function shortTag(device, idx) {
+    return (device.type === "fan" ? "F" : "L") + (idx + 1);
+  }
+
+  function buildOverlays(data) {
+    floorplanEl.querySelectorAll(".device-overlay, .room-chip").forEach((n) => n.remove());
+    for (const room of data.rooms) {
+      const chipPos = ROOM_LABEL_POSITIONS[room.name];
+      if (chipPos) {
+        const chip = document.createElement("div");
+        chip.className = "room-chip";
+        chip.style.left = chipPos.x + "%"; chip.style.top = chipPos.y + "%";
+        chip.innerHTML = `<span class="rc-name">${room.name}</span><span class="rc-watt mono" data-room-chip-watts="${room.name}">0W</span>`;
+        floorplanEl.appendChild(chip);
+      }
+      const counters = { fan: 0, light: 0 };
+      for (const device of room.devices) {
+        const idx = counters[device.type]++;
+        const slots = (DEVICE_POSITIONS[room.name] || {})[device.type] || [];
+        const pos = slots[idx];
+        if (!pos) continue;
+        const el = document.createElement("div");
+        el.className = `device-overlay ${device.type}`;
+        el.dataset.overlayId = device.id;
+        el.style.left = pos.x + "%"; el.style.top = pos.y + "%";
+        el.innerHTML = `<span class="dev-tag">${shortTag(device, idx)}</span>${device.type === "fan" ? fanSVG() : lightSVG()}`;
+        el.addEventListener("mouseenter", () => showTooltip(el));
+        el.addEventListener("mouseleave", hideTooltip);
+        floorplanEl.appendChild(el);
+      }
+    }
+  }
+
+  function updateOverlays(data) {
+    for (const room of data.rooms) {
+      const chipWatts = floorplanEl.querySelector(`[data-room-chip-watts="${CSS.escape(room.name)}"]`);
+      if (chipWatts) chipWatts.textContent = Math.round(room.wattage) + "W";
+      for (const device of room.devices) {
+        const el = floorplanEl.querySelector(`[data-overlay-id="${CSS.escape(device.id)}"]`);
+        if (!el) continue;
+        el.classList.toggle("device-on", device.status);
+        el.dataset.tooltip = `${prettyDeviceName(device)} · ${device.status ? "ON · " + device.power + "W" : "OFF"}`;
+      }
+    }
+  }
+
+  /* ---------- Floor-plan tooltip ---------- */
+  const tooltipEl = $("fp-tooltip");
+  function showTooltip(overlayEl) {
+    tooltipEl.textContent = overlayEl.dataset.tooltip || "";
+    const fp = floorplanEl.getBoundingClientRect();
+    const o = overlayEl.getBoundingClientRect();
+    let x = o.left - fp.left + o.width / 2;
+    let y = o.top - fp.top - 8;
+    tooltipEl.style.left = "0px"; tooltipEl.style.top = "0px";
+    tooltipEl.classList.add("visible");
+    const tw = tooltipEl.offsetWidth, th = tooltipEl.offsetHeight;
+    x = Math.min(Math.max(x - tw / 2, 4), fp.width - tw - 4);
+    y = y - th < 4 ? o.bottom - fp.top + 8 : y - th;
+    tooltipEl.style.left = x + "px"; tooltipEl.style.top = y + "px";
+  }
+  function hideTooltip() { tooltipEl.classList.remove("visible"); }
+
+  floorplanEl.addEventListener("click", (e) => {
+    const r = floorplanEl.getBoundingClientRect();
+    const x = (((e.clientX - r.left) / r.width) * 100).toFixed(1);
+    const y = (((e.clientY - r.top) / r.height) * 100).toFixed(1);
+    console.log(`[GridWatch] floor-plan click → { x: ${x}, y: ${y} }`);
+  });
+
+  /* ---------- Per-room meters ---------- */
+  function buildRoomMeters(data) {
+    const wrap = $("room-meters"); wrap.innerHTML = "";
+    for (const room of data.rooms) {
+      const row = document.createElement("div");
+      row.className = "room-row";
+      row.innerHTML = `
+        <div class="room-top">
+          <span class="room-lbl">${room.name}</span>
+          <span class="room-val mono" data-meter-watts="${room.name}">0W</span>
+        </div>
+        <div class="room-track"><div class="room-fill" data-meter-fill="${room.name}" style="width:0%"></div></div>`;
+      wrap.appendChild(row);
+    }
+  }
+  function updateRoomMeters(data) {
+    for (const room of data.rooms) {
+      const capacity = room.devices.reduce((w, d) => w + d.power, 0) || 1;
+      const watts = document.querySelector(`[data-meter-watts="${CSS.escape(room.name)}"]`);
+      const fill = document.querySelector(`[data-meter-fill="${CSS.escape(room.name)}"]`);
+      if (watts) watts.textContent = Math.round(room.wattage) + "W";
+      if (fill) fill.style.width = Math.min(100, (room.wattage / capacity) * 100) + "%";
+    }
+  }
+
+  /* ---------- Room summary strip ---------- */
+  function buildSummary(data) {
+    const wrap = document.querySelector(".fp-summary"); wrap.innerHTML = "";
+    for (const room of data.rooms) {
+      const cell = document.createElement("div");
+      cell.className = "fp-sum-cell";
+      cell.innerHTML = `
+        <div class="fp-sum-name">${room.name}</div>
+        <div class="fp-sum-row">
+          <span class="fp-sum-on mono" data-sum-on="${room.name}">0/0 ON</span>
+          <span class="fp-sum-w mono" data-sum-w="${room.name}">0W</span>
+        </div>`;
+      wrap.appendChild(cell);
+    }
+  }
+  function updateSummary(data) {
+    for (const room of data.rooms) {
+      const on = room.devices.filter((d) => d.status).length;
+      const onEl = document.querySelector(`[data-sum-on="${CSS.escape(room.name)}"]`);
+      const wEl = document.querySelector(`[data-sum-w="${CSS.escape(room.name)}"]`);
+      if (onEl) onEl.textContent = `${on}/${room.devices.length} ON`;
+      if (wEl) wEl.textContent = Math.round(room.wattage) + "W";
+    }
+  }
+
+  /* ---------- Device registry ---------- */
+  function prettyDeviceName(device) {
+    if (device.name) return device.name;   // backend supplies "Fan 1", "Light 2"
+    const m = String(device.id).match(/(\d+)\s*$/);
+    return device.type.charAt(0).toUpperCase() + device.type.slice(1) + (m ? " " + m[1] : "");
+  }
+  function buildDeviceList(data) {
+    const wrap = $("device-list"); wrap.innerHTML = "";
+    for (const room of data.rooms) {
+      const header = document.createElement("div");
+      header.className = "reg-room";
+      header.innerHTML = `<span class="rn">${room.name}</span><span class="rw mono" data-reg-watts="${room.name}">0W</span>`;
+      wrap.appendChild(header);
+      for (const d of room.devices) {
+        const row = document.createElement("div");
+        row.className = "dev-row";
+        row.dataset.deviceRow = d.id;
+        row.innerHTML = `
+          <span class="dev-icon ${d.type === "fan" ? "fan-i" : "light-i"}">${d.type === "fan" ? ICON_FAN_SM : ICON_LIGHT_SM}</span>
+          <span class="dev-name">${prettyDeviceName(d)}</span>
+          <span class="dev-watt mono" data-dev-watt>${d.power}W</span>
+          <span class="dev-state"><span class="dot off" data-dev-dot></span><span data-dev-label>OFF</span></span>`;
+        wrap.appendChild(row);
+      }
+    }
+  }
+  function updateDeviceList(data) {
+    for (const room of data.rooms) {
+      const regWatts = document.querySelector(`[data-reg-watts="${CSS.escape(room.name)}"]`);
+      if (regWatts) regWatts.textContent = Math.round(room.wattage) + "W";
+      for (const d of room.devices) {
+        const row = document.querySelector(`[data-device-row="${CSS.escape(d.id)}"]`);
+        if (!row) continue;
+        row.classList.toggle("on", d.status);
+        const dot = row.querySelector("[data-dev-dot]");
+        const label = row.querySelector("[data-dev-label]");
+        const watt = row.querySelector("[data-dev-watt]");
+        dot.className = d.status ? (d.type === "fan" ? "dot cyan" : "dot on") : "dot off";
+        label.textContent = d.status ? "ON" : "OFF";
+        watt.textContent = (d.status ? d.power : 0) + "W";
+        if (d.lastChanged) row.title = `${prettyDeviceName(d)} — last changed ${d.lastChanged}`;
+      }
+    }
+  }
+
+  /* ---------- Alerts event log ---------- */
+  /* Two alert kinds (not ranked) — colour keys off `type`, not severity. */
+  const ALERT_STYLE = {
+    after_hours:   { cls: "after-hours",  label: "AFTER HOURS" },
+    continuous_on: { cls: "continuous",   label: "CONTINUOUS ON" },
+    warning:       { cls: "after-hours",  label: "WARNING" },
+    critical:      { cls: "continuous",   label: "CRITICAL" },
+  };
+  function alertStyle(category) {
+    return ALERT_STYLE[category] || { cls: "after-hours", label: String(category || "ALERT").toUpperCase().replace(/_/g, " ") };
+  }
+
+  let renderedAlertKeys = null;
+  function renderAlerts(alerts) {
+    const feed = $("alert-feed");
+    $("alert-count").textContent = `${alerts.length} active`;
+    const key = alerts.map((a) => a.id + a.timestamp).join("|");
+    if (key === renderedAlertKeys) return;
+    renderedAlertKeys = key;
+
+    if (!alerts.length) {
+      feed.innerHTML = `
+        <div class="h-full min-h-[140px] flex flex-col items-center justify-center text-center gap-2 py-10 px-4">
+          <span style="color:var(--emerald)">${ICON_CHECK}</span>
+          <p class="text-[12.5px] font-medium" style="color:var(--txt-2)">All clear</p>
+          <p class="text-[11px] max-w-[180px]" style="color:var(--muted)">No active alerts. Anomalies appear here in real time.</p>
+        </div>`;
+      return;
+    }
+    feed.innerHTML = [...alerts].reverse().map((a) => {
+      const s = alertStyle(a.category);
+      return `
+      <div class="log-row sev-${s.cls}">
+        <div class="log-time mono">${a.timestamp}</div>
+        <div>
+          <div class="log-head">
+            <span class="log-sev">${s.label}</span>
+            ${a.room ? `<span class="log-room">${a.room}</span>` : ""}
+          </div>
+          <div class="log-msg">${a.message}</div>
+        </div>
+      </div>`;
+    }).join("");
+  }
+
+  /* ---------- Sparkline ---------- */
+  function pushPowerSample(watts) {
+    powerHistory.push(watts);
+    if (powerHistory.length > SPARK_MAX_SAMPLES) powerHistory.shift();
+    drawSparkline();
+  }
+  function sparkCapacity() {
+    if (!latest) return 500;
+    let cap = 0;
+    for (const r of latest.rooms) for (const d of r.devices) cap += d.power;
+    return cap || 500;
+  }
+  function sparkPoints() {
+    const cap = sparkCapacity();
+    const n = powerHistory.length;
+    return powerHistory.map((w, i) => ({ x: n > 1 ? (i / (n - 1)) * 100 : 0, y: 30 - (Math.min(w, cap) / cap) * 28 }));
+  }
+  function drawSparkline() {
+    const pts = sparkPoints();
+    if (pts.length < 2) return;
+    const line = pts.map((p, i) => `${i ? "L" : "M"}${p.x.toFixed(2)},${p.y.toFixed(2)}`).join(" ");
+    const area = `${line} L${pts[pts.length - 1].x.toFixed(2)},32 L${pts[0].x.toFixed(2)},32 Z`;
+    $("spark-line").setAttribute("d", line);
+    $("spark-area").setAttribute("d", area);
+  }
+  const sparkWrap = $("spark-wrap");
+  sparkWrap.addEventListener("mousemove", (e) => {
+    const pts = sparkPoints();
+    if (pts.length < 2) return;
+    const r = sparkWrap.getBoundingClientRect();
+    const svgH = $("sparkline").getBoundingClientRect().height;
+    const relX = ((e.clientX - r.left) / r.width) * 100;
+    let best = 0;
+    for (let i = 1; i < pts.length; i++) if (Math.abs(pts[i].x - relX) < Math.abs(pts[best].x - relX)) best = i;
+    const px = (pts[best].x / 100) * r.width;
+    const py = (pts[best].y / 32) * svgH;
+    const dot = $("spark-dot"), tip = $("spark-tip");
+    dot.style.left = px + "px"; dot.style.top = py + "px"; dot.classList.remove("hidden");
+    tip.style.left = px + "px"; tip.style.top = py + "px";
+    tip.textContent = Math.round(powerHistory[best]) + "W"; tip.classList.remove("hidden");
+  });
+  sparkWrap.addEventListener("mouseleave", () => { $("spark-dot").classList.add("hidden"); $("spark-tip").classList.add("hidden"); });
+
+  /* ==================================================================== */
+  /*  4b. THEME TOGGLE (dark / light)                                     */
+  /* ==================================================================== */
+  const ICON_SUN = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>`;
+  const ICON_MOON = `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79Z"/></svg>`;
+
+  const themeBtn = $("theme-btn");
+  function applyThemeIcon() {
+    const dark = document.documentElement.getAttribute("data-theme") !== "light";
+    themeBtn.innerHTML = dark ? ICON_SUN : ICON_MOON; // show the mode you'd switch TO
+  }
+  function setTheme(t) {
+    document.documentElement.setAttribute("data-theme", t);
+    try { localStorage.setItem("gw-theme", t); } catch (e) {}
+    applyThemeIcon();
+  }
+  themeBtn.addEventListener("click", () =>
+    setTheme(document.documentElement.getAttribute("data-theme") === "light" ? "dark" : "light"));
+  applyThemeIcon();
+
+  /* ==================================================================== */
+  /*  5. HEADER CLOCK + OFFICE-HOURS                                      */
+  /* ==================================================================== */
+  function tickClock() {
+    // In live mode the backend's simulated clock drives the display + office-hours;
+    // otherwise the local wall clock does.
+    const now = mode === "live" && liveSimClock ? liveSimClock : new Date();
+    $("clock").textContent = now.toLocaleTimeString("en-GB");
+    const inHours = now.getHours() >= OFFICE_OPEN_HOUR && now.getHours() < OFFICE_CLOSE_HOUR;
+    $("oh-text").textContent = inHours ? "Office Hours" : "After Hours";
+    $("oh-dot").className = inHours ? "dot on" : "dot warn";
+    $("clock-label").textContent = mode === "live" && liveSimClock ? "Sim time" : "Local time";
+  }
+  setInterval(tickClock, 1000); tickClock();
+
+  /* ==================================================================== */
+  /*  6. CONNECTION MANAGER                                               */
+  /* ==================================================================== */
+  let ws = null;
+
+  function setModeIndicator(state) {
+    const dot = $("mode-dot"), text = $("mode-text");
+    if (state === "live") { dot.className = "dot on pulse"; text.textContent = "Live"; }
+    else if (state === "sim") { dot.className = "dot cyan pulse"; text.textContent = "Simulation"; }
+    else { dot.className = "dot pulse"; text.textContent = "Connecting"; }
+    updateFooter(state);
+  }
+  function setFt(dotId, textId, cls, label) { $(dotId).className = "dot " + cls; $(textId).textContent = label; }
+  function updateFooter(state) {
+    if (state === "live") {
+      setFt("ft-api-dot", "ft-api", "on", "Online");
+      setFt("ft-ws-dot", "ft-ws", "on", "Connected");
+      setFt("ft-sim-dot", "ft-sim", "off", "Idle");
+    } else if (state === "sim") {
+      setFt("ft-api-dot", "ft-api", "off", "Offline");
+      setFt("ft-ws-dot", "ft-ws", "off", "Disconnected");
+      setFt("ft-sim-dot", "ft-sim", "cyan", "Running");
+    } else {
+      setFt("ft-api-dot", "ft-api", "warn", "Connecting");
+      setFt("ft-ws-dot", "ft-ws", "warn", "Connecting");
+      setFt("ft-sim-dot", "ft-sim", "off", "Standby");
+    }
+  }
+
+  function enterSimMode() {
+    if (mode === "live") return;
+    mode = "sim";
+    setModeIndicator("sim");
+    Simulator.start();
+  }
+
+  function connectWebSocket() {
+    if (location.protocol === "file:") { enterSimMode(); return; }
+    const proto = location.protocol === "https:" ? "wss:" : "ws:";
+    try { ws = new WebSocket(`${proto}//${location.host}${WS_PATH}`); }
+    catch { enterSimMode(); return; }
+
+    const timeout = setTimeout(() => { if (ws.readyState !== WebSocket.OPEN) ws.close(); }, WS_CONNECT_TIMEOUT_MS);
+    ws.onopen = () => clearTimeout(timeout);
+    ws.onmessage = (event) => {
+      let data; try { data = JSON.parse(event.data); } catch { return; }
+      const normalized = normalizePayload(data);
+      if (!normalized) return;
+      if (mode !== "live") { mode = "live"; Simulator.stop(); setModeIndicator("live"); }
+      applyPayload(normalized);
+    };
+    ws.onclose = () => {
+      clearTimeout(timeout);
+      const wasLive = mode === "live";
+      mode = "connecting";
+      enterSimMode();
+      if (wasLive) console.warn("[GridWatch] WebSocket lost — running on simulator until it returns.");
+      setTimeout(connectWebSocket, WS_RECONNECT_EVERY_MS);
+    };
+    ws.onerror = () => ws.close();
+  }
+
+  /* ==================================================================== */
+  /*  7. LOCAL SIMULATOR                                                  */
+  /* ==================================================================== */
+  /* Emits the SAME envelope the backend sends, so Simulation mode drives the
+     identical normalizer path as Live: { sim_time, office:{rooms:[{devices:[
+     {on,watts,rated_watts}]…]}}, usage:{today_kwh}, alerts:[{type,triggered_at}] } */
+  const Simulator = (() => {
+    const ROOMS = ROOM_NAMES;
+    const FAN_W = 60, LIGHT_W = 15;
+    let devices = [], alerts = [], timer = null;
+    let simEnergyKwh = 0;
+    let forcedAfterHours = false;
+
+    const slug = (r) => r.toLowerCase().replace(/\s+/g, "-");
+    const nowISO = () => new Date().toISOString();
+
+    function init() {
+      devices = [];
+      for (const room of ROOMS) {
+        for (let i = 1; i <= 3; i++) devices.push(makeDevice(room, "light", i, LIGHT_W));
+        for (let i = 1; i <= 2; i++) devices.push(makeDevice(room, "fan", i, FAN_W));
+      }
+    }
+    function makeDevice(room, type, n, power) {
+      return {
+        id: `${slug(room)}-${type}-${n}`,
+        name: type.charAt(0).toUpperCase() + type.slice(1) + " " + n,
+        room, type, power, status: Math.random() < 0.5, last_changed: nowISO(),
+      };
+    }
+    function payload() {
+      const rooms = ROOMS.map((name) => {
+        const ds = devices.filter((d) => d.room === name);
+        const total = ds.reduce((w, d) => w + (d.status ? d.power : 0), 0);
+        return {
+          name, total_watts: total,
+          fans_on: ds.filter((d) => d.type === "fan" && d.status).length,
+          lights_on: ds.filter((d) => d.type === "light" && d.status).length,
+          all_on: ds.every((d) => d.status),
+          devices: ds.map((d) => ({
+            id: d.id, name: d.name, type: d.type, room: name,
+            on: d.status, watts: d.status ? d.power : 0, rated_watts: d.power,
+            last_changed: d.last_changed,
+          })),
+        };
+      });
+      const total_watts = rooms.reduce((w, r) => w + r.total_watts, 0);
+      return {
+        sim_time: nowISO(),
+        office: { rooms, total_watts, total_devices: devices.length, devices_on: devices.filter((d) => d.status).length },
+        usage: { total_watts, per_room_watts: Object.fromEntries(rooms.map((r) => [r.name, r.total_watts])), today_kwh: Math.round(simEnergyKwh * 1000) / 1000, sim_time: nowISO() },
+        alerts,
+      };
+    }
+    function tick() {
+      if (Math.random() < 0.45) {
+        const d = devices[Math.floor(Math.random() * devices.length)];
+        d.status = !d.status; d.last_changed = nowISO();
+      }
+      const total = devices.reduce((w, d) => w + (d.status ? d.power : 0), 0);
+      simEnergyKwh += (total * 2) / 3.6e6;   // ~2s per tick
+      detectAnomalies();
+      applyPayload(normalizePayload(payload()));
+    }
+    /* Rebuilds the active-alert list each tick (absence = resolved), matching the
+       backend contract; triggered_at is held constant while an alert stays active. */
+    function detectAnomalies() {
+      const now = new Date();
+      const afterHours = forcedAfterHours || now.getHours() >= OFFICE_CLOSE_HOUR || now.getHours() < OFFICE_OPEN_HOUR;
+      const hhmm = now.toTimeString().slice(0, 5);
+      const prev = Object.fromEntries(alerts.map((a) => [a.id, a]));
+      const next = [];
+      const makeAlert = (type, room, message) => {
+        const id = `${type}:${room}`;
+        next.push({ id, type, room, message, triggered_at: prev[id]?.triggered_at || nowISO(), active: true });
+      };
+      for (const room of ROOMS) {
+        const rd = devices.filter((d) => d.room === room);
+        const on = rd.filter((d) => d.status);
+        if (on.length === 0) continue;
+        if (afterHours) makeAlert("after_hours", room, `${room} still has ${parts(on)} on at ${hhmm} (outside office hours).`);
+        if (on.length === rd.length) makeAlert("continuous_on", room, `${room} has all devices on continuously for 2+ hours.`);
+      }
+      alerts = next;
+    }
+    function parts(on) {
+      const l = on.filter((d) => d.type === "light").length, f = on.filter((d) => d.type === "fan").length;
+      const bits = [];
+      if (l) bits.push(`${l} light${l === 1 ? "" : "s"}`);
+      if (f) bits.push(`${f} fan${f === 1 ? "" : "s"}`);
+      return bits.join(" and ");
+    }
+    return {
+      start() { if (timer) return; if (!devices.length) init(); tick(); timer = setInterval(tick, 2000); },
+      stop() { clearInterval(timer); timer = null; },
+      trigger5pm() {
+        for (const d of devices) if (d.room === "Work Room 2") { d.status = true; d.last_changed = nowISO(); }
+        forcedAfterHours = true;
+        detectAnomalies();
+        applyPayload(normalizePayload(payload()));
+      },
+      allOff() { forcedAfterHours = false; for (const d of devices) { d.status = false; d.last_changed = nowISO(); } detectAnomalies(); applyPayload(normalizePayload(payload())); },
+      randomize() { forcedAfterHours = false; for (const d of devices) { d.status = Math.random() < 0.5; d.last_changed = nowISO(); } detectAnomalies(); applyPayload(normalizePayload(payload())); },
+    };
+  })();
+
+  /* ==================================================================== */
+  /*  8. DEBUG MODAL                                                      */
+  /* ==================================================================== */
+  const modal = $("debug-modal");
+  const debugStatus = $("debug-status");
+  $("ver-btn").addEventListener("click", () => modal.classList.remove("hidden"));
+  $("debug-close").addEventListener("click", () => modal.classList.add("hidden"));
+  $("debug-backdrop").addEventListener("click", () => modal.classList.add("hidden"));
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") modal.classList.add("hidden"); });
+
+  $("debug-trigger-5pm").addEventListener("click", async () => {
+    if (mode === "live") {
+      debugStatus.textContent = "Posting to /api/debug/trigger-alert…";
+      try {
+        const res = await fetch("/api/debug/trigger-alert", { method: "POST" });
+        debugStatus.textContent = res.ok ? "Sent — backend will emit the anomaly." : `Backend replied ${res.status}; sent WebSocket fallback.`;
+        if (!res.ok && ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: "debug", action: "trigger-alert" }));
+      } catch {
+        if (ws?.readyState === WebSocket.OPEN) { ws.send(JSON.stringify({ type: "debug", action: "trigger-alert" })); debugStatus.textContent = "HTTP failed; sent WebSocket fallback."; }
+        else debugStatus.textContent = "Backend unreachable.";
+      }
+    } else { Simulator.trigger5pm(); debugStatus.textContent = "Scenario injected into local simulator."; }
+  });
+  $("debug-all-off").addEventListener("click", () => {
+    if (mode === "live") { debugStatus.textContent = "Unavailable in live mode."; return; }
+    Simulator.allOff(); debugStatus.textContent = "All simulated devices switched off.";
+  });
+  $("debug-randomize").addEventListener("click", () => {
+    if (mode === "live") { debugStatus.textContent = "Unavailable in live mode."; return; }
+    Simulator.randomize(); debugStatus.textContent = "Simulated device states randomized.";
+  });
+
+  /* ==================================================================== */
+  /*  9. BOOT                                                             */
+  /* ==================================================================== */
+  updateFooter("connecting");
+  connectWebSocket();
+  setTimeout(() => { if (!latest) enterSimMode(); }, WS_CONNECT_TIMEOUT_MS + 500);
+  </script>
+</body>
+</html>
