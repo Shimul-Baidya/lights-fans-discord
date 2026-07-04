@@ -1,47 +1,30 @@
+"""FastAPI application. Wires the simulator loop into the app lifespan -- the
+same lifespan pattern the Phase 0 proof-of-concept used -- and exposes the REST
+API plus the /ws/dashboard WebSocket that pushes a full state snapshot on every
+simulator tick.
+"""
 import asyncio
-import json
 from contextlib import asynccontextmanager
-from datetime import datetime
 from pathlib import Path
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse
 
-# Phase 0 proof-of-concept: confirms the FastAPI WebSocket broadcast mechanism
-# works end to end (server push -> browser update, no polling, no refresh)
-# before Phase 1 wires it to real device state.
-
-active_connections: set[WebSocket] = set()
-counter = 0
-
-
-async def broadcast_loop():
-    global counter
-    while True:
-        await asyncio.sleep(1)
-        counter += 1
-        payload = json.dumps({
-            "counter": counter,
-            "server_time": datetime.now().strftime("%H:%M:%S"),
-            "connected_clients": len(active_connections),
-        })
-        dead = set()
-        for ws in active_connections:
-            try:
-                await ws.send_text(payload)
-            except Exception:
-                dead.add(ws)
-        active_connections.difference_update(dead)
+import simulator
+from api import router as api_router
+from state import office
+from ws import manager
 
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
-    task = asyncio.create_task(broadcast_loop())
+    task = asyncio.create_task(simulator.run())
     yield
     task.cancel()
 
 
-app = FastAPI(lifespan=lifespan)
+app = FastAPI(title="Lights, Fans, Discord — Backend", lifespan=lifespan)
+app.include_router(api_router)
 
 INDEX_HTML = (Path(__file__).parent / "static" / "index.html").read_text()
 
@@ -51,12 +34,16 @@ async def index():
     return INDEX_HTML
 
 
-@app.websocket("/ws")
-async def websocket_endpoint(websocket: WebSocket):
-    await websocket.accept()
-    active_connections.add(websocket)
+@app.websocket("/ws/dashboard")
+async def ws_dashboard(websocket: WebSocket):
+    await manager.connect(websocket)
+    # Push the current snapshot immediately so a newly connected client isn't
+    # blank until the next tick.
+    await manager.send(websocket, office.snapshot().model_dump_json())
     try:
         while True:
+            # We don't expect inbound messages; this await just keeps the socket
+            # open and lets us detect disconnects.
             await websocket.receive_text()
     except WebSocketDisconnect:
-        active_connections.discard(websocket)
+        manager.disconnect(websocket)
