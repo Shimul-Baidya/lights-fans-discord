@@ -2,62 +2,73 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>WebSocket Proof of Concept — Lights, Fans, Discord</title>
+  <title>Backend Smoke Test — /ws/dashboard</title>
   <style>
     body {
       font-family: -apple-system, Segoe UI, Roboto, sans-serif;
       background: #0f172a;
       color: #e2e8f0;
       padding: 2rem;
-      max-width: 640px;
+      max-width: 820px;
       margin: 0 auto;
     }
     h1 { font-size: 1.25rem; font-weight: 600; }
-    .card {
+    p.note { color: #94a3b8; font-size: 0.9rem; }
+    .bar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1.25rem;
+      align-items: center;
       background: #1e293b;
       border-radius: 12px;
-      padding: 1.5rem;
-      margin-top: 1rem;
+      padding: 1rem 1.25rem;
+      margin: 1rem 0;
+      font-variant-numeric: tabular-nums;
     }
-    .label { color: #94a3b8; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em; }
-    .value { font-size: 2.5rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+    .bar b { color: #f8fafc; }
     .status { display: inline-block; padding: 0.2rem 0.6rem; border-radius: 999px; font-size: 0.8rem; }
     .status.connected { background: #14532d; color: #86efac; }
     .status.disconnected { background: #7f1d1d; color: #fca5a5; }
+    pre {
+      background: #1e293b;
+      border-radius: 12px;
+      padding: 1.25rem;
+      overflow-x: auto;
+      font-size: 0.8rem;
+      line-height: 1.4;
+    }
+    code { color: #7dd3fc; }
   </style>
 </head>
 <body>
-  <h1>Phase 0 Proof of Concept: FastAPI WebSocket &rarr; Browser</h1>
-  <p>This page updates on its own. No refresh, no polling &mdash; the server pushes every second.</p>
+  <h1>Phase 1 Backend Smoke Test</h1>
+  <p class="note">
+    Live snapshot pushed over <code>/ws/dashboard</code> on every simulator tick.
+    This is a raw verification view for the backend, not the Phase 2 dashboard.
+  </p>
 
-  <div class="card">
-    <div class="label">Connection</div>
+  <div class="bar">
     <span class="status disconnected" id="status">connecting&hellip;</span>
+    <span>Sim time: <b id="simtime">&mdash;</b></span>
+    <span>Speed: <b id="speed">&mdash;</b>&times;</span>
+    <span>Total: <b id="watts">&mdash;</b> W</span>
+    <span>Devices on: <b id="devon">&mdash;</b></span>
+    <span>Active alerts: <b id="alerts">&mdash;</b></span>
   </div>
 
-  <div class="card">
-    <div class="label">Counter (server-pushed)</div>
-    <div class="value" id="counter">&mdash;</div>
-  </div>
-
-  <div class="card">
-    <div class="label">Server time</div>
-    <div class="value" id="time">&mdash;</div>
-  </div>
-
-  <div class="card">
-    <div class="label">Connected clients</div>
-    <div class="value" id="clients">&mdash;</div>
-  </div>
+  <pre id="snapshot">waiting for first snapshot&hellip;</pre>
 
   <script>
     const statusEl = document.getElementById("status");
-    const counterEl = document.getElementById("counter");
-    const timeEl = document.getElementById("time");
-    const clientsEl = document.getElementById("clients");
+    const simtimeEl = document.getElementById("simtime");
+    const speedEl = document.getElementById("speed");
+    const wattsEl = document.getElementById("watts");
+    const devonEl = document.getElementById("devon");
+    const alertsEl = document.getElementById("alerts");
+    const snapshotEl = document.getElementById("snapshot");
 
     const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
-    const ws = new WebSocket(`${proto}//${window.location.host}/ws`);
+    const ws = new WebSocket(`${proto}//${window.location.host}/ws/dashboard`);
 
     ws.onopen = () => {
       statusEl.textContent = "connected";
@@ -73,9 +84,12 @@
     };
     ws.onmessage = (event) => {
       const data = JSON.parse(event.data);
-      counterEl.textContent = data.counter;
-      timeEl.textContent = data.server_time;
-      clientsEl.textContent = data.connected_clients;
+      simtimeEl.textContent = new Date(data.sim_time).toLocaleTimeString();
+      speedEl.textContent = data.speed;
+      wattsEl.textContent = data.office.total_watts;
+      devonEl.textContent = `${data.office.devices_on}/${data.office.total_devices}`;
+      alertsEl.textContent = data.alerts.length;
+      snapshotEl.textContent = JSON.stringify(data, null, 2);
     };
   </script>
 </body>
